@@ -1,30 +1,55 @@
 {
   "expo": {
-    "name": "ora",
+    "name": "Ora",
     "slug": "ora",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.herbieduah.ora",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Ora uses the camera to capture moments and start time tracking loops.",
+        "NSPhotoLibraryUsageDescription": "Ora accesses your photo library so you can upload screenshots or photos to track your time."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "package": "com.herbieduah.ora",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "scheme": "ora",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Ora uses the camera to capture moments and start time tracking loops."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ora accesses your photo library so you can upload screenshots or photos to track your time."
+        }
+      ]
+    ]
   }
 }
