@@ -3,13 +3,13 @@ import { useLoopStore } from "@/store/useLoopStore";
 
 /**
  * Returns the live elapsed milliseconds for the active loop.
- * Updates at ~60fps using requestAnimationFrame.
+ * Updates once per second (not 60fps) since display only shows seconds.
  */
 export function useTimer(): number {
   const [elapsed, setElapsed] = useState(0);
-  const loops = useLoopStore((s) => s.loops);
   const activeLoopId = useLoopStore((s) => s.activeLoopId);
-  const rafRef = useRef<number | null>(null);
+  const loops = useLoopStore((s) => s.loops);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const activeLoop = loops.find((l) => l.id === activeLoopId);
@@ -20,12 +20,12 @@ export function useTimer(): number {
 
     const tick = () => {
       setElapsed(Date.now() - activeLoop.startTime);
-      rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    tick();
+    intervalRef.current = setInterval(tick, 1000);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [activeLoopId, loops]);
 

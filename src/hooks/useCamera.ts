@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { savePhoto } from "@/utils/photo";
 import { useLoopStore } from "@/store/useLoopStore";
+import { logErrorVoid } from "@/utils/log-error";
 
 export function useCamera() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -21,23 +22,35 @@ export function useCamera() {
     setCameraVisible(false);
   };
 
-  const captureAndStartLoop = async (tempUri: string) => {
-    const permanentUri = await savePhoto(tempUri);
-    await startLoop(permanentUri);
+  const captureAndStartLoop = (tempUri: string) => {
+    try {
+      const { uri, filename } = savePhoto(tempUri);
+      startLoop(uri, filename);
+    } catch (error) {
+      logErrorVoid("captureAndStartLoop", error);
+    }
     setCameraVisible(false);
   };
 
+  // Gallery: the image picker presents over the camera modal.
+  // We close the camera modal AFTER the pick completes — not before.
+  // iOS can't dismiss one modal while presenting another.
   const pickFromGallery = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.7,
-      allowsEditing: false,
-    });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsEditing: false,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      const permanentUri = await savePhoto(result.assets[0].uri);
-      await startLoop(permanentUri);
+      if (!result.canceled && result.assets[0]) {
+        const { uri, filename } = savePhoto(result.assets[0].uri);
+        startLoop(uri, filename);
+      }
+    } catch (error) {
+      logErrorVoid("pickFromGallery", error);
     }
+    setCameraVisible(false);
   };
 
   return {

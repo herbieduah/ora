@@ -16,7 +16,8 @@
       "bundleIdentifier": "com.herbieduah.ora",
       "infoPlist": {
         "NSCameraUsageDescription": "Ora uses the camera to capture moments and start time tracking loops.",
-        "NSPhotoLibraryUsageDescription": "Ora accesses your photo library so you can upload screenshots or photos to track your time."
+        "NSPhotoLibraryUsageDescription": "Ora accesses your photo library so you can upload screenshots or photos to track your time.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,8 +29,9 @@
       },
       "package": "com.herbieduah.ora",
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -49,7 +51,15 @@
         {
           "photosPermission": "Ora accesses your photo library so you can upload screenshots or photos to track your time."
         }
-      ]
-    ]
+      ],
+      "expo-localization"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ed1e678f-c746-4ff2-88c7-40b2c1f8faae"
+      }
+    },
+    "owner": "herbieduah"
   }
 }

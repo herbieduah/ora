@@ -1,10 +1,17 @@
 /**
+ * Zero-pad a number to 2 digits.
+ */
+export function zeroPad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
  * Get today's date key in YYYY-MM-DD format.
  */
 export function getDateKey(date: Date = new Date()): string {
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+  const m = zeroPad(date.getMonth() + 1);
+  const d = zeroPad(date.getDate());
   return `${y}-${m}-${d}`;
 }
 

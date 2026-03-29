@@ -23,7 +23,8 @@ export function useMidnightRollover() {
       // Loop started on a previous day — close it at end of its day
       const [y, m, d] = activeLoop.dateKey.split("-").map(Number);
       const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
-      closeActiveLoop(endOfDay).then(() => hydrate());
+      closeActiveLoop(endOfDay);
+      hydrate();
     }
   }, [activeLoopId, loops, closeActiveLoop, hydrate]);
 

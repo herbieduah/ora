@@ -1,37 +1,53 @@
-import * as FileSystem from "expo-file-system";
-import { v4 as uuidv4 } from "uuid";
+import { File, Directory, Paths } from "expo-file-system";
+import * as Crypto from "expo-crypto";
+import { getDateKey, zeroPad } from "./time";
+import { devError } from "./logger";
 
-const PHOTO_DIR = `${FileSystem.documentDirectory}ora-photos/`;
+const PHOTO_DIR_NAME = "ora-photos";
+let _photoDirCache: Directory | null = null;
 
-/**
- * Ensure the photo directory exists.
- */
-export async function ensurePhotoDir(): Promise<void> {
-  const info = await FileSystem.getInfoAsync(PHOTO_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
+function getPhotoDir(): Directory {
+  if (_photoDirCache) return _photoDirCache;
+  const dir = new Directory(Paths.document, PHOTO_DIR_NAME);
+  if (!dir.exists) {
+    dir.create();
   }
+  _photoDirCache = dir;
+  return dir;
 }
 
-/**
- * Save a photo from a temporary URI to the app's persistent storage.
- * Returns the new permanent file URI.
- */
-export async function savePhoto(tempUri: string): Promise<string> {
-  await ensurePhotoDir();
+function generatePhotoFilename(ext: string): string {
+  const now = new Date();
+  const dateKey = getDateKey(now);
+  const time = `${zeroPad(now.getHours())}${zeroPad(now.getMinutes())}${zeroPad(now.getSeconds())}`;
+  const shortId = Crypto.randomUUID().slice(0, 4);
+  return `${dateKey}_${time}_${shortId}.${ext}`;
+}
+
+export function savePhoto(
+  tempUri: string,
+): { uri: string; filename: string } {
+  const dir = getPhotoDir();
   const ext = tempUri.split(".").pop() || "jpg";
-  const fileName = `${uuidv4()}.${ext}`;
-  const destUri = `${PHOTO_DIR}${fileName}`;
-  await FileSystem.copyAsync({ from: tempUri, to: destUri });
-  return destUri;
+  const filename = generatePhotoFilename(ext);
+  const source = new File(tempUri);
+  const dest = new File(dir, filename);
+  try {
+    source.copy(dest);
+  } catch (error) {
+    devError("savePhoto", "Failed to copy photo:", error, { tempUri, dest: dest.uri });
+    throw error;
+  }
+  return { uri: dest.uri, filename };
 }
 
-/**
- * Delete a photo from local storage.
- */
-export async function deletePhoto(uri: string): Promise<void> {
-  const info = await FileSystem.getInfoAsync(uri);
-  if (info.exists) {
-    await FileSystem.deleteAsync(uri);
+export function deletePhoto(uri: string): void {
+  const file = new File(uri);
+  if (file.exists) {
+    file.delete();
   }
+}
+
+export function ensurePhotoDir(): void {
+  getPhotoDir();
 }

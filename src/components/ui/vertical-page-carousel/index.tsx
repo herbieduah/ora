@@ -21,6 +21,7 @@ import {
   performAndroidHapticsAsync,
 } from "expo-haptics";
 import { scheduleOnRN } from "react-native-worklets";
+import { colors } from "@/theme/colors";
 
 const { height } = Dimensions.get("window");
 
@@ -190,7 +191,7 @@ const VerticalPageCarousel = <ItemT extends VerticalPageItem>({
 const styles = StyleSheet.create({
   carouselWrapper: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.background,
   },
   flatListContent: {
     // paddingVertical is calculated dynamically
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 24,
     overflow: "hidden",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.card,
   },
   imageContainer: {
     position: "absolute",

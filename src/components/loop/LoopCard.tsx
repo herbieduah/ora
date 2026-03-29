@@ -1,4 +1,5 @@
-import { View, Text, Image } from "react-native";
+import { View, Text } from "react-native";
+import { Image } from "expo-image";
 import type { Loop } from "@/types";
 import { formatElapsed } from "@/utils/time";
 
@@ -15,9 +16,10 @@ export function LoopCard({ loop, elapsed }: LoopCardProps) {
   return (
     <View className="flex-1 rounded-2xl overflow-hidden bg-ora-card">
       <Image
-        source={{ uri: loop.photoUri }}
+        source={loop.photoUri}
         className="w-full h-full"
-        resizeMode="cover"
+        contentFit="cover"
+        transition={200}
       />
       <View className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
         <Text className="text-white text-2xl font-light tracking-wide">
@@ -30,7 +32,7 @@ export function LoopCard({ loop, elapsed }: LoopCardProps) {
           })}
         </Text>
       </View>
-      {!loop.endTime && (
+      {loop.endTime ? null : (
         <View className="absolute top-3 right-3 px-2 py-1 rounded-full bg-ora-gold/90">
           <Text className="text-black text-xs font-semibold">LIVE</Text>
         </View>

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { v4 as uuidv4 } from "uuid";
+import * as Crypto from "expo-crypto";
 import type { Loop, DayData } from "@/types";
 import { getDateKey } from "@/utils/time";
 import {
@@ -8,6 +8,7 @@ import {
   saveActiveLoopId,
   loadActiveLoopId,
   getAllDateKeys,
+  ensureDateKeyTracked,
 } from "@/utils/storage";
 
 interface LoopState {
@@ -20,14 +21,14 @@ interface LoopState {
   /** Whether store has rehydrated from storage */
   hydrated: boolean;
 
-  /** Rehydrate from AsyncStorage on app launch */
-  hydrate: () => Promise<void>;
+  /** Rehydrate from MMKV on app launch */
+  hydrate: () => void;
   /** Start a new loop — closes the active one if present */
-  startLoop: (photoUri: string) => Promise<void>;
+  startLoop: (photoUri: string, photoFilename?: string) => void;
   /** Load loops for a specific date */
-  loadDay: (dateKey: string) => Promise<DayData | null>;
+  loadDay: (dateKey: string) => DayData | null;
   /** Close the active loop at a specific time (for midnight rollover) */
-  closeActiveLoop: (endTime: number) => Promise<void>;
+  closeActiveLoop: (endTime: number) => void;
 }
 
 export const useLoopStore = create<LoopState>((set, get) => ({
@@ -36,13 +37,11 @@ export const useLoopStore = create<LoopState>((set, get) => ({
   dateKeys: [],
   hydrated: false,
 
-  hydrate: async () => {
+  hydrate: () => {
     const dateKey = getDateKey();
-    const [dayData, activeLoopId, dateKeys] = await Promise.all([
-      loadDayData(dateKey),
-      loadActiveLoopId(),
-      getAllDateKeys(),
-    ]);
+    const dayData = loadDayData(dateKey);
+    const activeLoopId = loadActiveLoopId();
+    const dateKeys = getAllDateKeys();
 
     set({
       loops: dayData?.loops ?? [],
@@ -52,38 +51,35 @@ export const useLoopStore = create<LoopState>((set, get) => ({
     });
   },
 
-  startLoop: async (photoUri: string) => {
+  startLoop: (photoUri: string, photoFilename?: string) => {
     const now = Date.now();
     const dateKey = getDateKey();
     const { loops, activeLoopId } = get();
 
-    // Close active loop
     const updatedLoops = loops.map((loop) =>
-      loop.id === activeLoopId ? { ...loop, endTime: now } : loop
+      loop.id === activeLoopId ? { ...loop, endTime: now } : loop,
     );
 
-    // Create new loop
     const newLoop: Loop = {
-      id: uuidv4(),
+      id: Crypto.randomUUID(),
       photoUri,
       startTime: now,
       endTime: null,
       dateKey,
+      photoFilename,
     };
 
     const allLoops = [...updatedLoops, newLoop];
 
-    // Persist atomically
-    await Promise.all([
-      saveDayData({ dateKey, loops: allLoops }),
-      saveActiveLoopId(newLoop.id),
-    ]);
+    saveDayData({ dateKey, loops: allLoops });
+    saveActiveLoopId(newLoop.id);
 
-    // Update date keys if this is a new day
     const { dateKeys } = get();
-    const newDateKeys = dateKeys.includes(dateKey)
-      ? dateKeys
-      : [dateKey, ...dateKeys];
+    const isNewDay = !dateKeys.includes(dateKey);
+    if (isNewDay) {
+      ensureDateKeyTracked(dateKey);
+    }
+    const newDateKeys = isNewDay ? [dateKey, ...dateKeys] : dateKeys;
 
     set({
       loops: allLoops,
@@ -92,23 +88,21 @@ export const useLoopStore = create<LoopState>((set, get) => ({
     });
   },
 
-  loadDay: async (dateKey: string) => {
+  loadDay: (dateKey: string) => {
     return loadDayData(dateKey);
   },
 
-  closeActiveLoop: async (endTime: number) => {
+  closeActiveLoop: (endTime: number) => {
     const { loops, activeLoopId } = get();
     if (!activeLoopId) return;
 
     const updatedLoops = loops.map((loop) =>
-      loop.id === activeLoopId ? { ...loop, endTime } : loop
+      loop.id === activeLoopId ? { ...loop, endTime } : loop,
     );
 
     const dateKey = getDateKey(new Date(endTime));
-    await Promise.all([
-      saveDayData({ dateKey, loops: updatedLoops }),
-      saveActiveLoopId(null),
-    ]);
+    saveDayData({ dateKey, loops: updatedLoops });
+    saveActiveLoopId(null);
 
     set({
       loops: updatedLoops,
