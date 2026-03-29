@@ -2,6 +2,8 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import { View, Text, Pressable, Modal, StyleSheet } from "react-native";
 import { CameraView, type CameraType } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { logErrorVoid } from "@/utils/log-error";
+import { devLog } from "@/utils/logger";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -93,6 +95,7 @@ export function CameraModal({
   useEffect(() => {
     if (visible) {
       setCameraReady(false);
+      setCapturing(false);
     }
   }, [visible]);
 
@@ -101,7 +104,10 @@ export function CameraModal({
   }, []);
 
   const takePicture = async () => {
-    if (!cameraRef.current || capturing || !cameraReady) return;
+    if (!cameraRef.current || capturing || !cameraReady) {
+      devLog("takePicture", "Guard blocked:", { ref: !!cameraRef.current, capturing, cameraReady });
+      return;
+    }
     setCapturing(true);
 
     shutterScale.value = withSequence(
@@ -116,13 +122,12 @@ export function CameraModal({
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.7,
-        skipProcessing: true,
       });
       if (photo?.uri) {
         onCapture(photo.uri);
       }
-    } catch {
-      // Camera not ready or view deallocated — fail gracefully
+    } catch (error) {
+      logErrorVoid("takePicture", error);
     } finally {
       setCapturing(false);
     }
