@@ -1,7 +1,7 @@
-import { useMemo, useEffect } from "react";
+import React, { useMemo, useCallback, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
-import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { BlurView } from "@sbaiahmed1/react-native-blur";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -22,9 +22,14 @@ import { useMidnightRollover } from "@/hooks/useMidnightRollover";
 import { useAppState } from "@/hooks/useAppState";
 import { formatElapsed } from "@/utils/time";
 import { CameraModal } from "@/components/camera/CameraModal";
+import { VerticalPageCarousel } from "@/components/ui/vertical-page-carousel";
 import { withScreenErrorBoundary } from "@/components/error-boundary";
+import type { Loop } from "@/types";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const getLoopKey = (item: { id: string }): string => item.id;
+const CAROUSEL_SCALE: [number, number, number] = [0.88, 1, 0.88];
+const CAROUSEL_OPACITY: [number, number, number] = [0.6, 1, 0.6];
 const RING_SIZE = SCREEN_WIDTH * 0.55;
 
 function PulsingRing() {
@@ -151,6 +156,17 @@ function ShutterButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+/** Self-contained live timer — isolates per-second re-renders to this leaf. */
+function LiveElapsed({ startTime }: { startTime: number }) {
+  const [elapsed, setElapsed] = React.useState(() => Date.now() - startTime);
+  React.useEffect(() => {
+    setElapsed(Date.now() - startTime);
+    const id = setInterval(() => setElapsed(Date.now() - startTime), 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
+  return <Text style={styles.loopDuration}>{formatElapsed(elapsed)}</Text>;
+}
+
 function MenuDots({ onPress }: { onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={styles.menuButton}>
@@ -163,6 +179,7 @@ function MenuDots({ onPress }: { onPress: () => void }) {
 
 function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const loops = useLoopStore((s) => s.loops);
   const activeLoopId = useLoopStore((s) => s.activeLoopId);
   const hydrated = useLoopStore((s) => s.hydrated);
@@ -181,6 +198,42 @@ function HomeScreen() {
 
   const activeLoop = loops.find((l) => l.id === activeLoopId);
   const displayLoops = useMemo(() => [...loops].reverse(), [loops]);
+  const carouselData = useMemo(
+    () => displayLoops.map((l) => ({ ...l, image: { uri: l.photoUri } })),
+    [displayLoops],
+  );
+
+  const renderCarouselItem = useCallback(
+    ({ item }: { item: Loop & { image: { uri: string } } }) => (
+      <View style={styles.loopOverlay}>
+        <BlurView blurType="dark" blurAmount={6} style={StyleSheet.absoluteFill} />
+        <View style={styles.loopOverlayContent}>
+          <View style={styles.loopInfo}>
+            {item.endTime ? (
+              <Text style={styles.loopDuration}>
+                {formatElapsed(item.endTime - item.startTime)}
+              </Text>
+            ) : (
+              <LiveElapsed startTime={item.startTime} />
+            )}
+            <Text style={styles.loopTime}>
+              {new Date(item.startTime).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          </View>
+          {!item.endTime && (
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    ),
+    [],
+  );
 
   if (!hydrated) {
     return (
@@ -193,23 +246,8 @@ function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.header}>
-        <View style={{ width: 40 }} />
-        <Text style={styles.wordmark}>ORA</Text>
-        <MenuDots onPress={() => router.push("/history/list")} />
-      </Animated.View>
-
-      {/* Timer - shown when a loop is active */}
-      {activeLoop && (
-        <Animated.View entering={FadeIn.duration(400)} style={styles.timerContainer}>
-          <Text style={styles.timerLabel}>TRACKING</Text>
-          <Text style={styles.timerValue}>{formatElapsed(elapsed)}</Text>
-        </Animated.View>
-      )}
-
-      {/* Content area */}
+    <View style={styles.container}>
+      {/* Base layer — carousel or empty state fills entire screen */}
       {displayLoops.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.ringContainer}>
@@ -230,47 +268,40 @@ function HomeScreen() {
           </Animated.View>
         </View>
       ) : (
-        <Animated.View entering={FadeIn.duration(400)} style={styles.loopList}>
-          {displayLoops.map((loop, index) => (
-            <Animated.View
-              key={loop.id}
-              entering={FadeInUp.duration(400).delay(index * 80)}
-              style={styles.loopCard}
-            >
-              <Image
-                source={loop.photoUri}
-                style={styles.loopImage}
-                contentFit="cover"
-                transition={200}
-              />
-              <View style={styles.loopOverlay}>
-                <View style={styles.loopInfo}>
-                  <Text style={styles.loopDuration}>
-                    {loop.endTime
-                      ? formatElapsed(loop.endTime - loop.startTime)
-                      : formatElapsed(elapsed)}
-                  </Text>
-                  <Text style={styles.loopTime}>
-                    {new Date(loop.startTime).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                </View>
-                {!loop.endTime && (
-                  <View style={styles.liveBadge}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>LIVE</Text>
-                  </View>
-                )}
-              </View>
-            </Animated.View>
-          ))}
-        </Animated.View>
+        <VerticalPageCarousel
+          data={carouselData}
+          itemHeight={SCREEN_HEIGHT * 0.7}
+          cardMargin={14}
+          cardSpacing={8}
+          pagingEnabled
+          scaleRange={CAROUSEL_SCALE}
+          opacityRange={CAROUSEL_OPACITY}
+          useBlur
+          keyExtractor={getLoopKey}
+          renderItem={renderCarouselItem}
+        />
       )}
 
-      {/* Shutter button */}
-      <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.shutterContainer}>
+      {/* Overlaid header — 3 columns: ORA | timer | dots */}
+      <Animated.View entering={FadeInDown.duration(500).delay(100)} style={[styles.header, { paddingTop: insets.top + 4 }]}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.wordmark}>ORA</Text>
+        </View>
+        <View style={styles.headerCenter}>
+          {activeLoop && (
+            <>
+              <Text style={styles.timerLabel}>TRACKING</Text>
+              <Text style={styles.timerValue}>{formatElapsed(elapsed)}</Text>
+            </>
+          )}
+        </View>
+        <View style={styles.headerRight}>
+          <MenuDots onPress={() => router.push("/history/list")} />
+        </View>
+      </Animated.View>
+
+      {/* Overlaid shutter */}
+      <Animated.View entering={FadeInUp.duration(500).delay(400)} style={[styles.shutterContainer, { paddingBottom: insets.bottom + 16 }]}>
         <ShutterButton onPress={openCamera} />
       </Animated.View>
 
@@ -280,7 +311,7 @@ function HomeScreen() {
         onCapture={captureAndStartLoop}
         onPickGallery={pickFromGallery}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -288,7 +319,7 @@ const GOLD = "#D4A843";
 const GOLD_DIM = "rgba(212, 168, 67, 0.15)";
 const GOLD_GLOW = "rgba(212, 168, 67, 0.35)";
 const BG = "#050505";
-const CARD_BG = "#111111";
+
 
 const styles = StyleSheet.create({
   container: {
@@ -307,14 +338,29 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // Header
+  // Header — 3-column overlay: ORA | timer | dots
   header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 16,
+    paddingBottom: 12,
+  },
+  headerLeft: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerRight: {
+    flex: 1,
+    alignItems: "flex-end",
   },
   wordmark: {
     color: GOLD,
@@ -323,10 +369,10 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
   },
   menuButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: "center",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 5,
   },
   menuDot: {
@@ -336,23 +382,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.4)",
   },
 
-  // Timer
-  timerContainer: {
-    alignItems: "center",
-    paddingBottom: 12,
-  },
   timerLabel: {
-    color: "rgba(212, 168, 67, 0.5)",
-    fontSize: 10,
-    fontWeight: "500",
-    letterSpacing: 4,
-    marginBottom: 4,
+    color: "rgba(212, 168, 67, 0.4)",
+    fontSize: 8,
+    fontWeight: "600",
+    letterSpacing: 3,
+    marginBottom: 2,
   },
   timerValue: {
     color: GOLD,
-    fontSize: 42,
-    fontWeight: "200",
-    letterSpacing: 4,
+    fontSize: 18,
+    fontWeight: "300",
+    letterSpacing: 2,
     fontVariant: ["tabular-nums"],
   },
 
@@ -434,32 +475,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Loop cards
-  loopList: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  loopCard: {
-    marginBottom: 12,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: CARD_BG,
-    height: 200,
-  },
-  loopImage: {
-    width: "100%",
-    height: "100%",
-  },
+  // Loop overlay (inside carousel cards)
   loopOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: "hidden",
+  },
+  loopOverlayContent: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
     padding: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   loopInfo: {},
   loopDuration: {
@@ -498,10 +528,14 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // Shutter button
+  // Shutter button — overlaid at bottom
   shutterContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
     alignItems: "center",
-    paddingBottom: 24,
     paddingTop: 12,
   },
   shutterOuter: {

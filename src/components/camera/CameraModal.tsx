@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { View, Text, Pressable, Modal, StyleSheet } from "react-native";
-import { CameraView, type CameraType } from "expo-camera";
+import { Image } from "expo-image";
+import { CameraView, type CameraType, type CameraMountError } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { logErrorVoid } from "@/utils/log-error";
 import { devLog } from "@/utils/logger";
@@ -11,6 +12,8 @@ import Animated, {
   withSequence,
   Easing,
   FadeIn,
+  FadeInDown,
+  FadeInUp,
 } from "react-native-reanimated";
 
 interface CameraModalProps {
@@ -75,6 +78,10 @@ export function CameraModal({
   const [facing, setFacing] = useState<CameraType>("back");
   const [capturing, setCapturing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  // Force CameraView remount on each open — avoids stale native view
+  // tags and guarantees a fresh onCameraReady callback.
+  const [cameraKey, setCameraKey] = useState(0);
   const insets = useSafeAreaInsets();
 
   const shutterScale = useSharedValue(1);
@@ -88,19 +95,22 @@ export function CameraModal({
     opacity: shutterInnerOpacity.value,
   }));
 
-  // Reset cameraReady every time the modal opens so we wait for a
-  // fresh onCameraReady from the native layer. On iOS, Modal keeps
-  // children mounted when hidden, so the old native view tag goes
-  // stale — using it causes "Unable to find CameraView with tag".
   useEffect(() => {
     if (visible) {
       setCameraReady(false);
       setCapturing(false);
+      setPreviewUri(null);
+      setCameraKey((k) => k + 1);
     }
   }, [visible]);
 
   const handleCameraReady = useCallback(() => {
+    devLog("CameraModal", "onCameraReady fired");
     setCameraReady(true);
+  }, []);
+
+  const handleMountError = useCallback((event: CameraMountError) => {
+    logErrorVoid("CameraView.onMountError", event.message);
   }, []);
 
   const takePicture = async () => {
@@ -120,11 +130,25 @@ export function CameraModal({
     );
 
     try {
+      devLog("takePicture", "calling takePictureAsync...");
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.7,
       });
+      devLog("takePicture", "result:", { hasPhoto: !!photo, uri: photo?.uri?.slice(-30) });
       if (photo?.uri) {
-        onCapture(photo.uri);
+        setPreviewUri(photo.uri);
+      } else {
+        // takePictureAsync returned undefined — native camera ref is likely stale.
+        // Fall back to system camera via expo-image-picker.
+        devLog("takePicture", "no photo returned, falling back to system camera");
+        const ImagePicker = await import("expo-image-picker");
+        const result = await ImagePicker.launchCameraAsync({
+          quality: 0.7,
+          allowsEditing: false,
+        });
+        if (!result.canceled && result.assets[0]?.uri) {
+          setPreviewUri(result.assets[0].uri);
+        }
       }
     } catch (error) {
       logErrorVoid("takePicture", error);
@@ -133,9 +157,20 @@ export function CameraModal({
     }
   };
 
+  const handleRetake = useCallback(() => {
+    setPreviewUri(null);
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    if (previewUri) {
+      onCapture(previewUri);
+    }
+  }, [previewUri, onCapture]);
+
   const flipCamera = () => {
     setCameraReady(false);
     setFacing((prev) => (prev === "front" ? "back" : "front"));
+    setCameraKey((k) => k + 1);
   };
 
   // Gallery: pick FIRST (while modal stays open), then close.
@@ -154,14 +189,101 @@ export function CameraModal({
       onRequestClose={onClose}
     >
       <View style={s.container}>
-        <CameraView
-          ref={cameraRef}
-          facing={facing}
-          style={s.camera}
-          onCameraReady={handleCameraReady}
-        />
+        {previewUri ? (
+          <View style={s.previewContainer}>
+            <Animated.View
+              entering={FadeIn.duration(400)}
+              style={[s.previewImageFrame, { marginTop: insets.top + 12 }]}
+            >
+              <View style={s.previewGoldBorder}>
+                <Image
+                  source={previewUri}
+                  style={s.previewImage}
+                  contentFit="cover"
+                />
+              </View>
+            </Animated.View>
 
-        {/* Close button */}
+            <Animated.View
+              entering={FadeInUp.duration(500).delay(200)}
+              style={s.previewPrompt}
+            >
+              <View style={s.previewAccentLine} />
+              <Text style={s.previewLabel}>BEGIN THIS MOMENT</Text>
+            </Animated.View>
+
+            <Animated.View
+              entering={FadeInDown.duration(400).delay(300)}
+              style={[s.previewControls, { paddingBottom: insets.bottom + 32 }]}
+            >
+              <Pressable
+                onPress={handleRetake}
+                style={s.retakeButton}
+                accessibilityRole="button"
+                accessibilityLabel="Retake photo"
+              >
+                <Text style={s.retakeText}>RETAKE</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleConfirm}
+                style={s.confirmButton}
+                accessibilityRole="button"
+                accessibilityLabel="Start tracking"
+              >
+                <Text style={s.confirmText}>START</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        ) : (
+          <>
+            <CameraView
+              key={cameraKey}
+              ref={cameraRef}
+              facing={facing}
+              style={s.camera}
+              onCameraReady={handleCameraReady}
+              onMountError={handleMountError}
+            />
+
+            {/* Bottom bar — gallery | shutter | flip */}
+            <Animated.View
+              entering={FadeIn.duration(300).delay(300)}
+              style={[s.bottomBarOuter, { bottom: insets.bottom + 24 }]}
+            >
+              <View style={s.bottomBarInner}>
+                <IconButton onPress={handleGallery} size={48}>
+                  <View style={s.galleryIcon}>
+                    <View style={s.galleryInner} />
+                  </View>
+                </IconButton>
+
+                <Pressable onPress={takePicture} disabled={capturing || !cameraReady}>
+                  <Animated.View
+                    style={[
+                      s.shutterOuter,
+                      shutterAnimStyle,
+                      !cameraReady ? { opacity: 0.4 } : undefined,
+                    ]}
+                  >
+                    <View style={s.shutterMiddle}>
+                      <Animated.View style={[s.shutterInner, shutterInnerStyle]} />
+                    </View>
+                  </Animated.View>
+                </Pressable>
+
+                <IconButton onPress={flipCamera} size={48}>
+                  <View style={s.flipIconContainer}>
+                    <View style={s.flipArcTop} />
+                    <View style={s.flipArcBottom} />
+                  </View>
+                </IconButton>
+              </View>
+            </Animated.View>
+          </>
+        )}
+
+        {/* Close button — always visible */}
         <Animated.View
           entering={FadeIn.duration(300).delay(200)}
           style={[s.topBar, { top: insets.top + 12 }]}
@@ -169,41 +291,6 @@ export function CameraModal({
           <IconButton onPress={onClose}>
             <Text style={s.closeIcon}>×</Text>
           </IconButton>
-        </Animated.View>
-
-        {/* Bottom bar — gallery | shutter | flip */}
-        <Animated.View
-          entering={FadeIn.duration(300).delay(300)}
-          style={[s.bottomBarOuter, { bottom: insets.bottom + 24 }]}
-        >
-          <View style={s.bottomBarInner}>
-            <IconButton onPress={handleGallery} size={48}>
-              <View style={s.galleryIcon}>
-                <View style={s.galleryInner} />
-              </View>
-            </IconButton>
-
-            <Pressable onPress={takePicture} disabled={capturing || !cameraReady}>
-              <Animated.View
-                style={[
-                  s.shutterOuter,
-                  shutterAnimStyle,
-                  !cameraReady ? { opacity: 0.4 } : undefined,
-                ]}
-              >
-                <View style={s.shutterMiddle}>
-                  <Animated.View style={[s.shutterInner, shutterInnerStyle]} />
-                </View>
-              </Animated.View>
-            </Pressable>
-
-            <IconButton onPress={flipCamera} size={48}>
-              <View style={s.flipIconContainer}>
-                <View style={s.flipArcTop} />
-                <View style={s.flipArcBottom} />
-              </View>
-            </IconButton>
-          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -306,5 +393,77 @@ const s = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+
+  // Preview
+  previewContainer: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
+  previewImageFrame: {
+    flex: 1,
+    margin: 20,
+    marginTop: 0,
+    marginBottom: 12,
+  },
+  previewGoldBorder: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: "rgba(212, 168, 67, 0.25)",
+    overflow: "hidden",
+  },
+  previewImage: {
+    flex: 1,
+  },
+  previewPrompt: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  previewAccentLine: {
+    width: 24,
+    height: 1,
+    backgroundColor: "rgba(212, 168, 67, 0.4)",
+    marginBottom: 12,
+  },
+  previewLabel: {
+    color: "rgba(212, 168, 67, 0.5)",
+    fontSize: 10,
+    fontWeight: "500",
+    letterSpacing: 5,
+  },
+  previewControls: {
+    flexDirection: "row",
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  retakeButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retakeText: {
+    color: "rgba(255, 255, 255, 0.5)",
+    fontSize: 13,
+    fontWeight: "300",
+    letterSpacing: 3,
+  },
+  confirmButton: {
+    flex: 1.4,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(212, 168, 67, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmText: {
+    color: "#050505",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 4,
   },
 });

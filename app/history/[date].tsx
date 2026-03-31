@@ -1,16 +1,22 @@
-import { useMemo } from "react";
-import { View, Text, Pressable, FlatList, StyleSheet } from "react-native";
-import { Image } from "expo-image";
+import { useMemo, useCallback } from "react";
+import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import { BlurView } from "@sbaiahmed1/react-native-blur";
 import type { Loop } from "@/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useLoopStore } from "@/store/useLoopStore";
 import { formatElapsed, formatDateLabel } from "@/utils/time";
+import { VerticalPageCarousel } from "@/components/ui/vertical-page-carousel";
 import { withScreenErrorBoundary } from "@/components/error-boundary";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const GOLD = "#D4A843";
 const BG = "#050505";
+const getLoopKey = (item: { id: string }): string => item.id;
+const CAROUSEL_SCALE: [number, number, number] = [0.88, 1, 0.88];
+const CAROUSEL_OPACITY: [number, number, number] = [0.6, 1, 0.6];
 
 function DayDetailScreen() {
   const router = useRouter();
@@ -23,6 +29,40 @@ function DayDetailScreen() {
   );
 
   const displayLoops = useMemo(() => [...loops].reverse(), [loops]);
+  const carouselData = useMemo(
+    () => displayLoops.map((l) => ({ ...l, image: { uri: l.photoUri } })),
+    [displayLoops],
+  );
+
+  const renderCarouselItem = useCallback(
+    ({ item }: { item: Loop & { image: { uri: string } } }) => (
+      <View style={s.cardOverlay}>
+        <BlurView blurType="dark" blurAmount={6} style={StyleSheet.absoluteFill} />
+        <View style={s.cardOverlayContent}>
+          <View>
+            <Text style={s.cardDuration}>
+              {item.endTime
+                ? formatElapsed(item.endTime - item.startTime)
+                : "Active"}
+            </Text>
+            <Text style={s.cardTime}>
+              {new Date(item.startTime).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          </View>
+          {item.endTime ? null : (
+            <View style={s.activeBadge}>
+              <View style={s.activeDot} />
+              <Text style={s.activeText}>ACTIVE</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    ),
+    [],
+  );
 
   const totalTracked = useMemo(
     () =>
@@ -59,44 +99,17 @@ function DayDetailScreen() {
         </View>
       </Animated.View>
 
-      <FlatList
-        data={displayLoops}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={s.listContent}
-        renderItem={({ item: loop, index }) => (
-          <Animated.View
-            entering={FadeInUp.duration(350).delay(250 + index * 70)}
-            style={s.card}
-          >
-            <Image
-              source={loop.photoUri}
-              style={s.cardImage}
-              contentFit="cover"
-              transition={200}
-            />
-            <View style={s.cardOverlay}>
-              <View>
-                <Text style={s.cardDuration}>
-                  {loop.endTime
-                    ? formatElapsed(loop.endTime - loop.startTime)
-                    : "Active"}
-                </Text>
-                <Text style={s.cardTime}>
-                  {new Date(loop.startTime).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-              </View>
-              {loop.endTime ? null : (
-                <View style={s.activeBadge}>
-                  <View style={s.activeDot} />
-                  <Text style={s.activeText}>ACTIVE</Text>
-                </View>
-              )}
-            </View>
-          </Animated.View>
-        )}
+      <VerticalPageCarousel
+        data={carouselData}
+        itemHeight={SCREEN_HEIGHT * 0.7}
+        cardMargin={14}
+        cardSpacing={8}
+        pagingEnabled
+        scaleRange={CAROUSEL_SCALE}
+        opacityRange={CAROUSEL_OPACITY}
+        useBlur
+        keyExtractor={getLoopKey}
+        renderItem={renderCarouselItem}
       />
     </SafeAreaView>
   );
@@ -173,32 +186,21 @@ const s = StyleSheet.create({
     marginVertical: 12,
   },
 
-  // Cards
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  card: {
-    marginBottom: 12,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "#111111",
-    height: 200,
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-  },
+  // Card overlay (inside carousel cards)
   cardOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: "hidden",
+  },
+  cardOverlayContent: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
     padding: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
   cardDuration: {
     color: "#FFFFFF",

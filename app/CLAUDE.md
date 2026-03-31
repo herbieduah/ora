@@ -7,5 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #12635 | 12:20 AM | 🟣 | Root Layout and Home Screen Created — Fully Wired MVP UI with Live Timer and Camera Integration | ~778 |
+| #12668 | 7:47 AM | 🔵 | Ora project already scaffolded with time-tracking MVP | ~578 |
 </claude-mem-context>

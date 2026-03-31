@@ -7,5 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #12630 | 12:18 AM | 🟣 | Core Data Model Types Defined — Loop and DayData Interfaces | ~446 |
+| #12668 | 7:47 AM | 🔵 | Ora project already scaffolded with time-tracking MVP | ~578 |
 </claude-mem-context>

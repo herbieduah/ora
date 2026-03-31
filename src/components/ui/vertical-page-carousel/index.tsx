@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { View, StyleSheet, Dimensions, Platform } from "react-native";
+import { Image } from "expo-image";
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -27,7 +28,11 @@ const { height } = Dimensions.get("window");
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
-const VerticalPageItemComponent = <ItemT extends VerticalPageItem>({
+const DEFAULT_SCALE_RANGE: [number, number, number] = [0.9, 1, 0.9];
+const DEFAULT_ROTATION_RANGE: [number, number, number] = [0, 0, 0];
+const DEFAULT_OPACITY_RANGE: [number, number, number] = [0.5, 1, 0.5];
+
+const VerticalPageItemComponent = React.memo(<ItemT extends VerticalPageItem>({
   item,
   index,
   scrollY,
@@ -99,11 +104,13 @@ const VerticalPageItemComponent = <ItemT extends VerticalPageItem>({
       <Animated.View
         style={[styles.card, { height: itemHeight }, animatedStyle]}
       >
-        <Animated.View style={[styles.imageContainer]}>
+        <Animated.View style={[styles.imageContainer, imageAnimatedStyle]}>
           {item.image && (
-            <Animated.Image
+            <Image
               source={item.image}
-              style={[styles.image, imageAnimatedStyle]}
+              style={styles.image}
+              contentFit="cover"
+              transition={200}
             />
           )}
         </Animated.View>
@@ -118,7 +125,7 @@ const VerticalPageItemComponent = <ItemT extends VerticalPageItem>({
       </Animated.View>
     </View>
   );
-};
+}) as <ItemT extends VerticalPageItem>(props: VerticalPageItemProps<ItemT>) => React.ReactElement;
 
 const VerticalPageCarousel = <ItemT extends VerticalPageItem>({
   data,
@@ -129,9 +136,9 @@ const VerticalPageCarousel = <ItemT extends VerticalPageItem>({
   cardSpacing = 20,
   pagingEnabled = true,
   showVerticalScrollIndicator = false,
-  scaleRange = [0.9, 1, 0.9],
-  rotationRange = [0, 0, 0],
-  opacityRange = [0.5, 1, 0.5],
+  scaleRange = DEFAULT_SCALE_RANGE,
+  rotationRange = DEFAULT_ROTATION_RANGE,
+  opacityRange = DEFAULT_OPACITY_RANGE,
   useBlur = true,
 }: VerticalPageProps<ItemT>) => {
   const scrollY = useSharedValue(0);
@@ -149,8 +156,30 @@ const VerticalPageCarousel = <ItemT extends VerticalPageItem>({
     },
   });
 
-  const defaultKeyExtractor = (item: ItemT, index: number) =>
-    keyExtractor ? keyExtractor(item, index) : `item-${index}`;
+  const defaultKeyExtractor = useCallback(
+    (item: ItemT, index: number) =>
+      keyExtractor ? keyExtractor(item, index) : `item-${index}`,
+    [keyExtractor],
+  );
+
+  const internalRenderItem = useCallback(
+    ({ item, index }: { item: ItemT; index: number }) => (
+      <VerticalPageItemComponent
+        item={item}
+        index={index}
+        scrollY={scrollY}
+        renderItem={renderItem}
+        itemHeight={itemHeight}
+        cardMargin={cardMargin}
+        cardSpacing={cardSpacing}
+        scaleRange={scaleRange}
+        rotationRange={rotationRange}
+        opacityRange={opacityRange}
+        useBlur={useBlur}
+      />
+    ),
+    [scrollY, renderItem, itemHeight, cardMargin, cardSpacing, scaleRange, rotationRange, opacityRange, useBlur],
+  );
 
   return (
     <View style={styles.carouselWrapper}>
@@ -168,21 +197,7 @@ const VerticalPageCarousel = <ItemT extends VerticalPageItem>({
           styles.flatListContent,
           { paddingVertical: (height - itemHeight) / 2 - cardSpacing / 2 },
         ]}
-        renderItem={({ item, index }) => (
-          <VerticalPageItemComponent
-            item={item}
-            index={index}
-            scrollY={scrollY}
-            renderItem={renderItem}
-            itemHeight={itemHeight}
-            cardMargin={cardMargin}
-            cardSpacing={cardSpacing}
-            scaleRange={scaleRange}
-            rotationRange={rotationRange}
-            opacityRange={opacityRange}
-            useBlur={useBlur}
-          />
-        )}
+        renderItem={internalRenderItem}
       />
     </View>
   );
@@ -217,7 +232,6 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
 });
 
