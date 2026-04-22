@@ -1,10 +1,3 @@
-/**
- * Read-only view of todos Archive has surfaced from the Obsidian vault.
- *
- * Distinct from local todos — these live in markdown files and tapping
- * toggles status via `PATCH /todos/{id}`. The mobile UI doesn't rewrite
- * markdown directly; the server handles markdown round-trip.
- */
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -46,7 +39,7 @@ export const VaultTodosList = React.memo(function VaultTodosList(): React.JSX.El
     setItems(
       items.map((t) => (t.id === todo.id ? { ...t, status: nextStatus } : t)),
     );
-    enqueue("PATCH", `/todos/${todo.id}`, { status: nextStatus }, todo.id);
+    enqueue("PATCH", `/todos/${todo.id}`, { status: nextStatus });
   }, [items]);
 
   return (

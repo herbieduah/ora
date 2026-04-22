@@ -1,24 +1,17 @@
-/**
- * Secure storage for the Archive bearer token.
- *
- * Uses expo-secure-store which writes to iOS Keychain / Android Keystore.
- * First-launch bootstrap: the token lives in the Mac's
- * `~/github/archive/.env` and must be entered once on-device (via the
- * Settings screen — not yet shipped) or prefilled through an EAS build
- * secret.
- *
- * Falling back to MMKV would be insecure for a token that gates a
- * personal memory layer; if the keychain read fails we return null and
- * let callers treat the API as unauthenticated rather than leak state.
- */
 import * as SecureStore from "expo-secure-store";
 import { devError } from "@/utils/logger";
 
 const KEY = "ora.archive_bearer";
 
+// Keychain reads are synchronous and ~5-20ms each; cache to skip the penalty
+// on every API call. Invalidated by setBearer/clearBearer.
+let cached: string | null | undefined;
+
 export async function getBearer(): Promise<string | null> {
+  if (cached !== undefined) return cached;
   try {
-    return (await SecureStore.getItemAsync(KEY)) ?? null;
+    cached = (await SecureStore.getItemAsync(KEY)) ?? null;
+    return cached;
   } catch (err) {
     devError("bearer-storage", "read failed", err);
     return null;
@@ -27,6 +20,7 @@ export async function getBearer(): Promise<string | null> {
 
 export async function setBearer(token: string): Promise<void> {
   await SecureStore.setItemAsync(KEY, token);
+  cached = token;
 }
 
 export async function clearBearer(): Promise<void> {
@@ -35,4 +29,5 @@ export async function clearBearer(): Promise<void> {
   } catch (err) {
     devError("bearer-storage", "clear failed", err);
   }
+  cached = null;
 }

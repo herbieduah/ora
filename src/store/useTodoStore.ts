@@ -4,6 +4,15 @@ import type { Todo } from "@/types";
 import { saveTodos, loadTodos } from "@/utils/todo-storage";
 import { enqueue } from "@/sync";
 
+interface RemoteTodo {
+  id: string;
+  text: string;
+  status: "open" | "done";
+  vault_path: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
 interface TodoState {
   todos: Todo[];
   hydrated: boolean;
@@ -12,18 +21,7 @@ interface TodoState {
   addTodo: (text: string) => void;
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
-
-  /** Merge todos fetched from Archive (via /todos) into local state without duplicating. */
   mergeRemoteTodos: (remote: RemoteTodo[]) => void;
-}
-
-interface RemoteTodo {
-  id: string;
-  text: string;
-  status: "open" | "done";
-  vault_path: string | null;
-  created_at: number;
-  updated_at: number;
 }
 
 export const useTodoStore = create<TodoState>((set, get) => ({
@@ -51,16 +49,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     saveTodos(todos);
     set({ todos });
 
-    // Archive sync — enqueue; failure is recoverable (queue retries).
-    enqueue(
-      "POST",
-      "/todos",
-      {
-        text: newTodo.text,
-        status: "open",
-      },
-      newTodo.id,
-    );
+    enqueue("POST", "/todos", { text: newTodo.text, status: "open" });
   },
 
   toggleTodo: (id: string) => {
@@ -78,16 +67,9 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
     const toggled = todos.find((t) => t.id === id);
     if (!toggled) return;
-    // If the todo is bound to a remote id (same id because we reuse the UUID
-    // on create), PATCH by that id. Remote-originated todos may have a
-    // different id — we key sync via correlation, but this simple case
-    // covers every locally-created todo.
-    enqueue(
-      "PATCH",
-      `/todos/${id}`,
-      { status: toggled.completed ? "done" : "open" },
-      id,
-    );
+    enqueue("PATCH", `/todos/${id}`, {
+      status: toggled.completed ? "done" : "open",
+    });
   },
 
   deleteTodo: (id: string) => {
@@ -95,7 +77,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     saveTodos(todos);
     set({ todos });
 
-    enqueue("DELETE", `/todos/${id}`, undefined, id);
+    enqueue("DELETE", `/todos/${id}`);
   },
 
   mergeRemoteTodos: (remote: RemoteTodo[]) => {
@@ -109,9 +91,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
     const merged: Todo[] = [...local];
     for (const r of remote) {
-      // Same id — server knows this one.
       if (localById.has(r.id)) continue;
-      // Vault-originated — pinned by vault_path.
       if (r.vault_path && byVault.has(r.vault_path)) continue;
       merged.push({
         id: r.id,

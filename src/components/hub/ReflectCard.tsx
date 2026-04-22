@@ -1,14 +1,3 @@
-/**
- * Mirror reflection surface.
- *
- * Fetches 1-3 open questions from Archive `/reflect`, Herbie answers
- * inline, the answer posts to `/reflect/answer` and stores as a
- * `mirror_reflection` memory. No advice, no to-dos — Mirror posture only.
- *
- * Questions degrade gracefully: if `ANTHROPIC_API_KEY` isn't configured,
- * the server returns 501 and we render a small "not configured" note
- * instead of a red error banner.
- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,

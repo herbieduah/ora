@@ -1,9 +1,5 @@
-/**
- * Thin fetch wrapper for the Archive FastAPI (`localhost:8765` in dev,
- * Tailscale IP in prod). All mutating calls should go through the sync
- * queue (`src/sync/client.ts`) — direct imports here are for GET
- * endpoints and the queue's own flush path.
- */
+// Mutating calls should flow through the sync queue so they survive offline;
+// direct use is limited to GETs and the queue's own flush path.
 import Config from "@/config";
 import { getBearer } from "@/services/bearer-storage";
 import { devError, devLog } from "@/utils/logger";
@@ -101,8 +97,6 @@ export async function request<T = unknown>(
   }
 }
 
-// ------------------------- typed endpoints -------------------------
-
 export interface ApiLoop {
   id: string;
   photo_uri: string | null;
@@ -193,7 +187,7 @@ export const devices = {
 };
 
 export const memory = {
-  search: (q: string, limit = 5) =>
+  search: (q: string, limit = 5, signal?: AbortSignal) =>
     request<{
       query: string;
       result: {
@@ -205,7 +199,7 @@ export const memory = {
           created_at?: string;
         }[];
       };
-    }>("/memory/search", { query: { q, limit } }),
+    }>("/memory/search", { query: { q, limit }, signal }),
   all: (limit = 10) =>
     request<{
       result: {
@@ -235,6 +229,19 @@ export const reflect = {
       method: "POST",
       body,
     }),
+};
+
+export const transcribe = {
+  upload: (form: FormData) =>
+    request<{
+      ok: boolean;
+      text: string;
+      duration_s: number;
+      provider?: string;
+      vault_path?: string;
+      archive_job_id?: string;
+      detail?: string;
+    }>("/transcribe", { method: "POST", body: form }),
 };
 
 export async function health(): Promise<boolean> {

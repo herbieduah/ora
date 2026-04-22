@@ -1,11 +1,3 @@
-/**
- * Register this device with Archive so Claude-on-Mac can push.
- *
- * Idempotent: the Archive `/devices` endpoint upserts by token, so
- * re-registering across app launches is cheap. We also declare notification
- * categories (action button sets) up front — iOS caches them at
- * registration time and adding new ones later needs an app restart.
- */
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
@@ -16,8 +8,7 @@ import { storage } from "@/store/storage/mmkv-storage";
 
 const LAST_REGISTERED_KEY = "ora.push.last_registered_token";
 
-// Notification categories: define the action button sets Claude can use.
-// Adding new categories later requires an app restart for iOS to pick them up.
+// iOS caches categories at registration; adding new ones needs an app restart.
 // `identifier` must match the `category_id` in the `/notify` payload.
 export const NOTIFICATION_CATEGORIES = [
   {

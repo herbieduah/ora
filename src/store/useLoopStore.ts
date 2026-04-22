@@ -92,18 +92,13 @@ export const useLoopStore = create<LoopState>((set, get) => ({
 
     // Archive sync — close previous (if any), create new.
     if (activeLoopId) {
-      enqueue("PATCH", `/loops/${activeLoopId}`, { end_time: now }, activeLoopId);
+      enqueue("PATCH", `/loops/${activeLoopId}`, { end_time: now });
     }
-    enqueue(
-      "POST",
-      "/loops",
-      {
-        photo_uri: photoUri,
-        photo_filename: photoFilename,
-        start_time: now,
-      },
-      newLoop.id,
-    );
+    enqueue("POST", "/loops", {
+      photo_uri: photoUri,
+      photo_filename: photoFilename,
+      start_time: now,
+    });
   },
 
   loadDay: (dateKey: string) => {
@@ -127,7 +122,7 @@ export const useLoopStore = create<LoopState>((set, get) => ({
       activeLoopId: null,
     });
 
-    enqueue("PATCH", `/loops/${activeLoopId}`, { end_time: endTime }, activeLoopId);
+    enqueue("PATCH", `/loops/${activeLoopId}`, { end_time: endTime });
   },
 
   updateLoopMetadata: (id, patch) => {
@@ -140,6 +135,6 @@ export const useLoopStore = create<LoopState>((set, get) => ({
     saveDayData({ dateKey: target.dateKey, loops: updated });
     set({ loops: updated });
 
-    enqueue("PATCH", `/loops/${id}`, patch, id);
+    enqueue("PATCH", `/loops/${id}`, patch);
   },
 }));

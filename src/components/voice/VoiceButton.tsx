@@ -1,13 +1,3 @@
-/**
- * Floating press-and-hold voice capture button.
- *
- * Records via expo-av, posts the m4a to Archive `/transcribe`, writes
- * transcript to Archive (raw_capture) + vault _Inbox. On release the
- * transcript shows in a toast that Herbie can swipe-dismiss.
- *
- * Hidden when a text input is focused anywhere in the tree — avoids
- * sitting on top of the keyboard.
- */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -28,8 +18,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
-import Config from "@/config";
-import { getBearer } from "@/services/bearer-storage";
+import { transcribe } from "@/api/archive-client";
 import { devError, devLog } from "@/utils/logger";
 import { colors } from "@/theme/colors";
 
@@ -129,29 +118,14 @@ export const VoiceButton = React.memo(function VoiceButton({
 
     try {
       const form = new FormData();
-      // React Native's FormData supports the { uri, name, type } shape.
+      // React Native's FormData accepts { uri, name, type } despite the standard type.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (form as any).append("audio", {
         uri,
         name: "voice.m4a",
         type: "audio/m4a",
       });
-      const token = await getBearer();
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const resp = await fetch(
-        `${Config.archiveBaseUrl.replace(/\/$/, "")}/transcribe`,
-        {
-          method: "POST",
-          body: form,
-          headers,
-        },
-      );
-      if (!resp.ok) {
-        const detail = await resp.text();
-        throw new Error(`${resp.status}: ${detail.slice(0, 200)}`);
-      }
-      const data = (await resp.json()) as { text?: string };
+      const data = await transcribe.upload(form);
       setTranscript(data.text ?? "");
       setMode("result");
       devLog("VoiceButton", "transcript", (data.text || "").slice(0, 80));

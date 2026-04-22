@@ -1,10 +1,3 @@
-/**
- * Background flusher that drains the sync queue against Archive.
- *
- * Mount once via `startSyncFlusher()` (wire into the root layout).
- * Ticks every N ms and processes up to a handful of entries per tick.
- * Each entry either lands (remove from queue) or schedules its retry.
- */
 import { AppState, type AppStateStatus } from "react-native";
 import {
   list as listEntries,
@@ -14,7 +7,7 @@ import {
   MAX_RETRY_ATTEMPTS,
   type QueueEntry,
 } from "./queue";
-import { request, health } from "@/api/archive-client";
+import { request } from "@/api/archive-client";
 import { devError, devLog } from "@/utils/logger";
 
 const TICK_MS = 4_000;
@@ -22,12 +15,19 @@ const MAX_PER_TICK = 5;
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let appStateSub: { remove: () => void } | null = null;
+// Consecutive tick failures; drives lazy back-off when Archive is unreachable.
+let consecutiveFailures = 0;
 
 async function flushOnce(): Promise<void> {
-  if (!listEntries().length) return;
-  const reachable = await health();
-  if (!reachable) {
-    devLog("sync-flush", "archive unreachable; skip tick");
+  if (!listEntries().length) {
+    consecutiveFailures = 0;
+    return;
+  }
+
+  // Skip the tick entirely after repeated failures — scheduleRetry already
+  // handles per-entry backoff; this keeps the interval quiet.
+  if (consecutiveFailures > 3 && consecutiveFailures % 4 !== 0) {
+    consecutiveFailures++;
     return;
   }
 
@@ -40,41 +40,22 @@ async function flushOnce(): Promise<void> {
 
 async function processEntry(entry: QueueEntry): Promise<void> {
   try {
-    await request(entry.path, {
-      method: entry.method,
-      body: entry.body,
-    });
+    await request(entry.path, { method: entry.method, body: entry.body });
     removeEntry(entry.id);
-    devLog(
-      "sync-flush",
-      "ok",
-      entry.method,
-      entry.path,
-      "attempts=",
-      entry.attempts,
-    );
+    consecutiveFailures = 0;
   } catch (err) {
+    consecutiveFailures++;
     if (entry.attempts + 1 >= MAX_RETRY_ATTEMPTS) {
-      devError(
-        "sync-flush",
-        "giving up after max attempts",
-        entry.method,
-        entry.path,
-        err,
-      );
-      // Leave in queue but at its terminal attempt count; a later
-      // manual retry button can bump `attempts` back to 0.
+      devError("sync-flush", "giving up", entry.method, entry.path, err);
     }
     scheduleRetry(entry.id);
     devLog(
       "sync-flush",
-      "retry scheduled",
+      "retry",
       entry.method,
       entry.path,
       "attempts=",
       entry.attempts + 1,
-      "err=",
-      (err as Error).message,
     );
   }
 }

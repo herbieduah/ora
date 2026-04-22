@@ -1,6 +1,3 @@
-/**
- * Debounced search input against Archive memory.
- */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -40,7 +37,7 @@ export const ArchiveSearch = React.memo(function ArchiveSearch(): React.JSX.Elem
     }
     setLoading(true);
     try {
-      const res = await memoryApi.search(q, 6);
+      const res = await memoryApi.search(q, 6, ctrl.signal);
       if (ctrl.signal.aborted) return;
       setResults(
         (res.result.results || []).map((r) => ({
