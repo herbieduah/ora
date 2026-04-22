@@ -25,9 +25,18 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.background },
-            animation: "slide_from_right",
           }}
-        />
+        >
+          <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
+          <Stack.Screen
+            name="history/list"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="history/[date]"
+            options={{ animation: "slide_from_right" }}
+          />
+        </Stack>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );

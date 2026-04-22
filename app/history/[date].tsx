@@ -1,14 +1,14 @@
 import { useMemo, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
 import { BlurView } from "@sbaiahmed1/react-native-blur";
-import type { Loop } from "@/types";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useLoopStore } from "@/store/useLoopStore";
 import { formatElapsed, formatDateLabel } from "@/utils/time";
 import { VerticalPageCarousel } from "@/components/ui/vertical-page-carousel";
 import { withScreenErrorBoundary } from "@/components/error-boundary";
+import type { Loop } from "@/types";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -18,8 +18,9 @@ const getLoopKey = (item: { id: string }): string => item.id;
 const CAROUSEL_SCALE: [number, number, number] = [0.88, 1, 0.88];
 const CAROUSEL_OPACITY: [number, number, number] = [0.6, 1, 0.6];
 
-function DayDetailScreen() {
+function DayDetailScreen(): React.JSX.Element {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { date } = useLocalSearchParams<{ date: string }>();
   const loadDay = useLoopStore((s) => s.loadDay);
 
@@ -32,6 +33,15 @@ function DayDetailScreen() {
   const carouselData = useMemo(
     () => displayLoops.map((l) => ({ ...l, image: { uri: l.photoUri } })),
     [displayLoops],
+  );
+
+  const totalTracked = useMemo(
+    () =>
+      loops.reduce((sum, l) => {
+        if (l.endTime) return sum + (l.endTime - l.startTime);
+        return sum;
+      }, 0),
+    [loops],
   );
 
   const renderCarouselItem = useCallback(
@@ -64,54 +74,64 @@ function DayDetailScreen() {
     [],
   );
 
-  const totalTracked = useMemo(
-    () =>
-      loops.reduce((sum, l) => {
-        if (l.endTime) return sum + (l.endTime - l.startTime);
-        return sum;
-      }, 0),
-    [loops],
-  );
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  }, [router]);
 
   return (
-    <SafeAreaView style={s.container}>
-      <Animated.View entering={FadeIn.duration(400).delay(50)} style={s.header}>
-        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/")} style={s.backButton}>
-          <Text style={s.backChevron}>‹</Text>
-        </Pressable>
-        <Text style={s.title}>
-          {date ? formatDateLabel(date).toUpperCase() : ""}
-        </Text>
-        <View style={{ width: 44 }} />
-      </Animated.View>
-
-      <Animated.View entering={FadeIn.duration(500).delay(150)} style={s.statsRow}>
-        <View style={s.statBlock}>
-          <View style={s.statAccent} />
-          <Text style={s.statLabel}>LOOPS</Text>
-          <Text style={s.statValue}>{loops.length}</Text>
+    <View style={s.container}>
+      {/* Base layer — carousel fills entire screen */}
+      {loops.length === 0 ? (
+        <View style={s.emptyContainer}>
+          <View style={s.emptyDot} />
+          <Text style={s.emptyTitle}>No loops</Text>
+          <Text style={s.emptySubtitle}>No moments captured this day</Text>
         </View>
-        <View style={s.statDivider} />
-        <View style={s.statBlock}>
-          <View style={s.statAccent} />
-          <Text style={s.statLabel}>TRACKED</Text>
-          <Text style={s.statValue}>{formatElapsed(totalTracked)}</Text>
+      ) : (
+        <VerticalPageCarousel
+          data={carouselData}
+          itemHeight={SCREEN_HEIGHT * 0.7}
+          cardMargin={14}
+          cardSpacing={8}
+          pagingEnabled
+          scaleRange={CAROUSEL_SCALE}
+          opacityRange={CAROUSEL_OPACITY}
+          useBlur
+          keyExtractor={getLoopKey}
+          renderItem={renderCarouselItem}
+        />
+      )}
+
+      {/* Overlaid header — back button, date, compact stats */}
+      <Animated.View
+        entering={FadeInDown.duration(400).delay(50)}
+        style={[s.header, { paddingTop: insets.top + 4 }]}
+      >
+        <View style={s.headerRow}>
+          <Pressable
+            onPress={handleBack}
+            style={s.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Text style={s.backChevron}>‹</Text>
+          </Pressable>
+          <View style={s.headerCenter}>
+            <Text style={s.title}>
+              {date ? formatDateLabel(date).toUpperCase() : ""}
+            </Text>
+            <Text style={s.statsLine}>
+              {loops.length} {loops.length === 1 ? "loop" : "loops"} · {formatElapsed(totalTracked)}
+            </Text>
+          </View>
+          <View style={s.headerSpacer} />
         </View>
       </Animated.View>
-
-      <VerticalPageCarousel
-        data={carouselData}
-        itemHeight={SCREEN_HEIGHT * 0.7}
-        cardMargin={14}
-        cardSpacing={8}
-        pagingEnabled
-        scaleRange={CAROUSEL_SCALE}
-        opacityRange={CAROUSEL_OPACITY}
-        useBlur
-        keyExtractor={getLoopKey}
-        renderItem={renderCarouselItem}
-      />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -121,13 +141,19 @@ const s = StyleSheet.create({
     backgroundColor: BG,
   },
 
+  // Header — absolute overlay like home screen
   header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 12,
   },
   backButton: {
     width: 44,
@@ -141,49 +167,55 @@ const s = StyleSheet.create({
     fontWeight: "200",
     marginTop: -2,
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
   title: {
     color: GOLD,
     fontSize: 14,
     fontWeight: "300",
     letterSpacing: 5,
   },
-
-  // Stats
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    marginHorizontal: 20,
-    marginBottom: 20,
+  statsLine: {
+    color: "rgba(212, 168, 67, 0.35)",
+    fontSize: 11,
+    fontWeight: "400",
+    letterSpacing: 1,
+    marginTop: 4,
   },
-  statBlock: {
+  headerSpacer: {
+    width: 44,
+  },
+
+  // Empty state
+  emptyContainer: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 16,
+    justifyContent: "center",
+    marginTop: -40,
   },
-  statAccent: {
-    width: 24,
-    height: 1,
-    backgroundColor: "rgba(212, 168, 67, 0.3)",
+  emptyDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(212, 168, 67, 0.4)",
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    color: "rgba(255, 255, 255, 0.5)",
+    fontSize: 14,
+    fontWeight: "300",
+    letterSpacing: 5,
+    textTransform: "uppercase",
     marginBottom: 12,
   },
-  statLabel: {
-    color: "rgba(212, 168, 67, 0.5)",
-    fontSize: 10,
-    fontWeight: "500",
-    letterSpacing: 4,
-    marginBottom: 6,
-  },
-  statValue: {
-    color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 28,
-    fontWeight: "200",
-    letterSpacing: 2,
-    fontVariant: ["tabular-nums"],
-  },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(212, 168, 67, 0.12)",
-    marginVertical: 12,
+  emptySubtitle: {
+    color: "rgba(255, 255, 255, 0.2)",
+    fontSize: 13,
+    fontWeight: "400",
+    textAlign: "center",
+    letterSpacing: 0.5,
   },
 
   // Card overlay (inside carousel cards)

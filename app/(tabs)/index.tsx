@@ -24,6 +24,7 @@ import { formatElapsed } from "@/utils/time";
 import { CameraModal } from "@/components/camera/CameraModal";
 import { VerticalPageCarousel } from "@/components/ui/vertical-page-carousel";
 import { withScreenErrorBoundary } from "@/components/error-boundary";
+import { TAB_BAR_HEIGHT } from "@/components/navigation/ora-tab-bar";
 import type { Loop } from "@/types";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -301,7 +302,7 @@ function HomeScreen() {
       </Animated.View>
 
       {/* Overlaid shutter */}
-      <Animated.View entering={FadeInUp.duration(500).delay(400)} style={[styles.shutterContainer, { paddingBottom: insets.bottom + 16 }]}>
+      <Animated.View entering={FadeInUp.duration(500).delay(400)} style={[styles.shutterContainer, { paddingBottom: insets.bottom + TAB_BAR_HEIGHT + 16 }]}>
         <ShutterButton onPress={openCamera} />
       </Animated.View>
 

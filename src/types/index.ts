@@ -18,3 +18,13 @@ export interface DayData {
   dateKey: string;
   loops: Loop[];
 }
+
+export interface Todo {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+  completedAt: number | null;
+}
+
+export type PomodoroPhase = "idle" | "work" | "break";
