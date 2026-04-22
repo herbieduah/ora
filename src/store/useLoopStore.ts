@@ -10,6 +10,7 @@ import {
   getAllDateKeys,
   ensureDateKeyTracked,
 } from "@/utils/storage";
+import { enqueue } from "@/sync";
 
 interface LoopState {
   /** Today's loops */
@@ -29,6 +30,8 @@ interface LoopState {
   loadDay: (dateKey: string) => DayData | null;
   /** Close the active loop at a specific time (for midnight rollover) */
   closeActiveLoop: (endTime: number) => void;
+  /** Attach a label or notes to a loop (local-first, syncs to Archive). */
+  updateLoopMetadata: (id: string, patch: { label?: string; notes?: string }) => void;
 }
 
 export const useLoopStore = create<LoopState>((set, get) => ({
@@ -86,6 +89,21 @@ export const useLoopStore = create<LoopState>((set, get) => ({
       activeLoopId: newLoop.id,
       dateKeys: newDateKeys,
     });
+
+    // Archive sync — close previous (if any), create new.
+    if (activeLoopId) {
+      enqueue("PATCH", `/loops/${activeLoopId}`, { end_time: now }, activeLoopId);
+    }
+    enqueue(
+      "POST",
+      "/loops",
+      {
+        photo_uri: photoUri,
+        photo_filename: photoFilename,
+        start_time: now,
+      },
+      newLoop.id,
+    );
   },
 
   loadDay: (dateKey: string) => {
@@ -108,5 +126,20 @@ export const useLoopStore = create<LoopState>((set, get) => ({
       loops: updatedLoops,
       activeLoopId: null,
     });
+
+    enqueue("PATCH", `/loops/${activeLoopId}`, { end_time: endTime }, activeLoopId);
+  },
+
+  updateLoopMetadata: (id, patch) => {
+    const { loops } = get();
+    const updated = loops.map((loop) =>
+      loop.id === id ? { ...loop, ...patch } : loop,
+    );
+    const target = updated.find((l) => l.id === id);
+    if (!target) return;
+    saveDayData({ dateKey: target.dateKey, loops: updated });
+    set({ loops: updated });
+
+    enqueue("PATCH", `/loops/${id}`, patch, id);
   },
 }));

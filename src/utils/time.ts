@@ -76,6 +76,16 @@ export function formatDateLabel(dateKey: string): string {
 }
 
 /**
+ * Format milliseconds as a countdown timer: "25:00", "01:32".
+ */
+export function formatCountdown(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${zeroPad(minutes)}:${zeroPad(seconds)}`;
+}
+
+/**
  * Milliseconds until the next midnight.
  */
 export function msUntilMidnight(): number {

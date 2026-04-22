@@ -18,3 +18,17 @@ export interface DayData {
   dateKey: string;
   loops: Loop[];
 }
+
+export interface Todo {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+  completedAt: number | null;
+  /** Set when the todo originated from an Obsidian vault checkbox (file.md:line). */
+  vaultPath?: string;
+  /** True if the todo was pulled from Archive rather than created locally. */
+  remote?: boolean;
+}
+
+export type PomodoroPhase = "idle" | "work" | "break";

@@ -14,8 +14,11 @@ import Animated, {
 import type { HamburgerIconProps } from "./types";
 import { BlurView, type BlurViewProps } from "expo-blur";
 
-const AnimatedBlurView =
-  Animated.createAnimatedComponent<BlurViewProps>(BlurView);
+// Reanimated's generic inference on BlurView is loose; cast through unknown
+// rather than fighting the overload. Behavior is unchanged.
+const AnimatedBlurView = Animated.createAnimatedComponent(
+  BlurView as unknown as React.ComponentType<BlurViewProps>,
+);
 
 export const HamburgerIcon: React.FC<HamburgerIconProps> =
   memo<HamburgerIconProps>(

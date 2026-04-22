@@ -7,6 +7,10 @@ import { useLoopStore } from "@/store/useLoopStore";
 import { ErrorBoundary } from "@/components/error-boundary";
 import Config from "@/config";
 import { colors } from "@/theme/colors";
+import { startSyncFlusher, stopSyncFlusher } from "@/sync";
+import { registerForPushNotifications } from "@/notifications/register";
+import { startNotificationHandler } from "@/notifications/handler";
+import { devError } from "@/utils/logger";
 
 export default function RootLayout() {
   const hydrate = useLoopStore((s) => s.hydrate);
@@ -14,6 +18,21 @@ export default function RootLayout() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    // Start background Archive sync queue drain.
+    startSyncFlusher();
+    // Wire notification taps → Archive quick-log / deep links.
+    const stopNotifHandler = startNotificationHandler();
+    // Register for push in the background; the UI doesn't wait on this.
+    void registerForPushNotifications().catch((err) =>
+      devError("_layout", "push registration failed", err),
+    );
+    return () => {
+      stopSyncFlusher();
+      stopNotifHandler();
+    };
+  }, []);
 
   return (
     <GestureHandlerRootView
@@ -25,9 +44,18 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.background },
-            animation: "slide_from_right",
           }}
-        />
+        >
+          <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
+          <Stack.Screen
+            name="history/list"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="history/[date]"
+            options={{ animation: "slide_from_right" }}
+          />
+        </Stack>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );

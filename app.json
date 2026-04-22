@@ -52,7 +52,8 @@
           "photosPermission": "Ora accesses your photo library so you can upload screenshots or photos to track your time."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},
